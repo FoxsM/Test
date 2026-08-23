@@ -1,0 +1,53 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: timesheet-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./backend
+    image: timesheet-api:local
+    container_name: timesheet-api
+    environment:
+      Mongo__ConnectionString: mongodb://mongo:27017
+      Mongo__Database: timesheet
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "5080:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  # Одноразовый контейнер: наполняет базу приёмочными данными и завершается.
+  seed:
+    build: ./backend
+    image: timesheet-api:local
+    container_name: timesheet-seed
+    command: ["--seed"]
+    environment:
+      Mongo__ConnectionString: mongodb://mongo:27017
+      Mongo__Database: timesheet
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build: ./frontend
+    image: timesheet-web:local
+    container_name: timesheet-web
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  mongo-data:
