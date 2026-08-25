@@ -248,17 +248,18 @@ public static class TimesheetPipelines
             { "projects", new BsonDocument("$sum", 1) }
         });
 
-    /// <summary>Строки отчёта и итоговая строка — за один проход по уже сгруппированным данным.</summary>
+    /// <summary>
+    /// Строки отчёта и итоговая строка — за один проход по уже сгруппированным данным.
+    /// Внутри $facet намеренно только простые стадии: справочник проектов подтягивается
+    /// до него (по одному документу на проект), и конвейер не зависит от того,
+    /// какие стадии конкретная версия MongoDB разрешает внутри $facet.
+    /// </summary>
     public static BsonDocument ReportFacet() =>
         new BsonDocument("$facet", new BsonDocument
         {
             {
                 "rows", new BsonArray
                 {
-                    LookupProjectById(),
-                    Unwind("project"),
-                    AddBudgetPercent(),
-                    AddBudgetFlags(),
                     ProjectReportShape(),
                     Sort(new BsonDocument("projectCode", 1))
                 }

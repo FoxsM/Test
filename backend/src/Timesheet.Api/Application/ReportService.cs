@@ -35,13 +35,19 @@ public class ReportService
                 employeeId: null,
                 projectId: null),
 
-            // Проект подтягивается уже после группировки (внутри $facet) — по одному документу
-            // на проект вместо одного на каждую запись табеля.
             TimesheetPipelines.LookupEmployee(),
             TimesheetPipelines.Unwind("employee"),
             TimesheetPipelines.AddEffectiveRate(),
             TimesheetPipelines.AddAmount(),
             TimesheetPipelines.GroupByProject(),
+
+            // Проект подтягивается уже после группировки: по одному документу на проект
+            // вместо одного на каждую запись табеля.
+            TimesheetPipelines.LookupProjectById(),
+            TimesheetPipelines.Unwind("project"),
+            TimesheetPipelines.AddBudgetPercent(),
+            TimesheetPipelines.AddBudgetFlags(),
+
             TimesheetPipelines.ReportFacet()
         };
 

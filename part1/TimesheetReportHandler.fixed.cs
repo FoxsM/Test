@@ -157,46 +157,56 @@ namespace Demo.Api.Queries.Reports
                 ""amount"": { ""$sum"": ""$amount"" }
             } }");
 
+            // Проект подтягивается уже после группировки — по одному документу на проект,
+            // а не на каждую запись табеля.
+            var lookupProject = BsonDocument.Parse(@"{ ""$lookup"": {
+                ""from"": ""projects"",
+                ""localField"": ""_id"",
+                ""foreignField"": ""_id"",
+                ""as"": ""project""
+            } }");
+
+            var unwindProject = BsonDocument.Parse(
+                @"{ ""$unwind"": { ""path"": ""$project"", ""preserveNullAndEmptyArrays"": true } }");
+
+            // FIX 6: при нулевом или отсутствующем бюджете процент освоения — null,
+            // а не Infinity/NaN, на которых падает сериализация ответа.
+            var addBudget = BsonDocument.Parse(@"{ ""$addFields"": {
+                ""budget"": { ""$ifNull"": [""$project.budget"", 0] }
+            } }");
+
+            var addPercent = BsonDocument.Parse(@"{ ""$addFields"": {
+                ""percent"": { ""$cond"": [
+                    { ""$gt"": [""$budget"", 0] },
+                    { ""$round"": [{ ""$multiply"": [{ ""$divide"": [""$amount"", ""$budget""] }, 100] }, 2] },
+                    null
+                ] }
+            } }");
+
+            var shape = BsonDocument.Parse(@"{ ""$project"": {
+                ""_id"": 0,
+                ""projectId"": ""$_id"",
+                ""projectCode"": { ""$ifNull"": [""$project.code"", ""—""] },
+                ""projectName"": { ""$ifNull"": [""$project.name"", ""Проект удалён""] },
+                ""hours"": 1,
+                ""amount"": 1,
+                ""budget"": 1,
+                ""percent"": 1,
+                ""overspent"": { ""$and"": [
+                    { ""$ne"": [""$percent"", null] },
+                    { ""$gt"": [""$percent"", 100] }
+                ] },
+                ""atRisk"": { ""$and"": [
+                    { ""$ne"": [""$percent"", null] },
+                    { ""$gt"": [""$percent"", 80] }
+                ] }
+            } }");
+
             // FIX 10: строки и итог считаются за один проход по уже сгруппированным данным.
+            // Внутри $facet — только простые стадии, чтобы не зависеть от того, какие стадии
+            // конкретная версия MongoDB разрешает в его подконвейерах.
             var facet = BsonDocument.Parse(@"{ ""$facet"": {
-                ""rows"": [
-                    { ""$lookup"": {
-                        ""from"": ""projects"",
-                        ""localField"": ""_id"",
-                        ""foreignField"": ""_id"",
-                        ""as"": ""project""
-                    } },
-                    { ""$unwind"": { ""path"": ""$project"", ""preserveNullAndEmptyArrays"": true } },
-                    { ""$addFields"": {
-                        ""budget"": { ""$ifNull"": [""$project.budget"", 0] }
-                    } },
-                    { ""$addFields"": {
-                        ""percent"": { ""$cond"": [
-                            { ""$gt"": [""$budget"", 0] },
-                            { ""$round"": [{ ""$multiply"": [{ ""$divide"": [""$amount"", ""$budget""] }, 100] }, 2] },
-                            null
-                        ] }
-                    } },
-                    { ""$project"": {
-                        ""_id"": 0,
-                        ""projectId"": ""$_id"",
-                        ""projectCode"": { ""$ifNull"": [""$project.code"", ""—""] },
-                        ""projectName"": { ""$ifNull"": [""$project.name"", ""Проект удалён""] },
-                        ""hours"": 1,
-                        ""amount"": 1,
-                        ""budget"": 1,
-                        ""percent"": 1,
-                        ""overspent"": { ""$and"": [
-                            { ""$ne"": [""$percent"", null] },
-                            { ""$gt"": [""$percent"", 100] }
-                        ] },
-                        ""atRisk"": { ""$and"": [
-                            { ""$ne"": [""$percent"", null] },
-                            { ""$gt"": [""$percent"", 80] }
-                        ] }
-                    } },
-                    { ""$sort"": { ""projectCode"": 1 } }
-                ],
+                ""rows"": [ { ""$sort"": { ""projectCode"": 1 } } ],
                 ""totals"": [
                     { ""$group"": {
                         ""_id"": null,
@@ -215,6 +225,11 @@ namespace Demo.Api.Queries.Reports
                 addRate,
                 addAmount,
                 groupByProject,
+                lookupProject,
+                unwindProject,
+                addBudget,
+                addPercent,
+                shape,
                 facet
             });
         }
