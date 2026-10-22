@@ -1,6 +1,6 @@
 # Учёт трудозатрат и стоимость работ по проектам
 
-Тестовое задание: .NET 8 + MongoDB + React 18/TypeScript.
+.NET 8 + MongoDB + React 18/TypeScript.
 
 * **Часть 1** — разбор чужого кода: [`REVIEW.md`](REVIEW.md), исправленные файлы в [`part1/`](part1).
 * **Часть 2** — мини-фича end-to-end: бэкенд в [`backend/`](backend), фронтенд в [`frontend/`](frontend).
